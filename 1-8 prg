@@ -1,0 +1,469 @@
+main activity.java
+package com.example.pr10;
+import android.annotation.SuppressLint;
+import android.os.Bundle;
+import androidx.activity.EdgeToEdge;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
+// Your code begins here
+// Step 1: Import UI classes from Android API for Database Operations
+import android.content.ContentValues;
+import android.content.Context;
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
+import android.database.sqlite.SQLiteOpenHelper;
+import android.widget.EditText;
+import android.widget.Button;
+import android.widget.Toast;
+// Your code ends here
+public class MainActivity extends AppCompatActivity {
+    // Your code begins here
+    // Step 2: Create instances of UI classes and define variables and    constants
+    // if required for the application
+    // creating variables for our edittext, button and dbhandler
+    private EditText txtRegno, txtName;
+    private Button btnInsert, btnUpdate, btnDelete, btnView, btnClose,btnClear;
+    private DBHandler dbHandler;
+    String rno, name;
+    int nr;
+    @SuppressLint("MissingInflatedId")
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        EdgeToEdge.enable(this);
+        setContentView(R.layout.activity_main);
+        // Your code begins here
+        // Step 3: Instantiating the UI objects, variables and constants
+        // initializing all our variables.
+        txtRegno=findViewById(R.id.txtStudentRNo);
+        txtName=findViewById(R.id.txtStudentName);
+        btnInsert=findViewById(R.id.btnInsert);
+        btnUpdate=findViewById(R.id.btnUpdate);
+        btnDelete=findViewById(R.id.btnDelete);
+        btnView=findViewById(R.id.btnView);
+        btnClose=findViewById(R.id.btnClose);
+        btnClear=findViewById(R.id.btnClear);
+        // creating a new dbhandler class
+        // and passing our context to it.
+        dbHandler = new DBHandler(MainActivity.this);
+
+
+        // Inserting a record into a Database Table
+        btnInsert.setOnClickListener(view -> {
+            // below line is to get data from all edit text fields.
+            rno = txtRegno.getText().toString();
+            name = txtName.getText().toString();
+            // validating if the text fields are empty or not.
+            if (rno.isEmpty() && name.isEmpty()) {
+                Toast.makeText(MainActivity.this, "Please enter all the data..", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            // on below line we are calling a method to add new
+            // course to sqlite data and pass all our values to it.
+            dbHandler.addNewRecord(rno, name);
+            // after adding the data we are displaying a toast message.
+            Toast.makeText(MainActivity.this, "Student record has been added.", Toast.LENGTH_SHORT).show();
+            clearTextFields();
+        });
+
+
+        // Updating an existing record into a Database table
+        btnUpdate.setOnClickListener(view -> {
+            // below line is to get data from all edit text fields.
+            rno = txtRegno.getText().toString();
+            name = txtName.getText().toString();
+            // validating if the text fields are empty or not
+            if (rno.isEmpty() && name.isEmpty()) {
+                Toast.makeText(MainActivity.this, "Please enter all the data..", Toast.LENGTH_SHORT).show();
+            } else {
+                nr = dbHandler.updateRecord(rno, name);
+                if (nr>0)
+                    Toast.makeText(MainActivity.this, "Details of "+rno+" updated successfully", Toast.LENGTH_LONG).show();
+                else
+                    Toast.makeText(MainActivity.this, rno+" is not found in the database table", Toast.LENGTH_LONG).show();
+            }
+        });
+
+
+        // Deleting an existing record from a Database table
+        btnDelete.setOnClickListener(view -> {
+            rno = txtRegno.getText().toString();
+            if (!rno.isEmpty()) {
+                 nr=dbHandler.deleteRecord(rno);
+                if (nr>0)
+                    Toast.makeText(MainActivity.this, rno+" deleted from the database table", Toast.LENGTH_LONG).show();
+                else
+                    Toast.makeText(MainActivity.this, rno+" is not found in the database table", Toast.LENGTH_LONG).show();
+                clearTextFields();
+            }
+            if (rno.equalsIgnoreCase(""))
+                Toast.makeText(MainActivity.this, "Please enter the register number of a student!", Toast.LENGTH_LONG).show();
+        });
+
+
+        // Displaying a specific record from a database table
+        btnView.setOnClickListener(view -> {
+            rno = txtRegno.getText().toString();
+            StudentRecord rec;
+            if (!rno.isEmpty())
+            {
+                rec = dbHandler.viewRecord(rno);
+                if (rec!=null)
+                {
+                    txtName.setText(rec.getName());
+                    if (!txtName.getText().toString().equalsIgnoreCase(""))
+                        Toast.makeText(MainActivity.this, "REGNO:"+rec.getRegno()+" & NAME: "+rec.getName(), Toast.LENGTH_LONG).show();
+                    else
+                    {
+                        Toast.makeText(MainActivity.this, rno + " is not found in the   database table", Toast.LENGTH_LONG).show();
+                            clearTextFields();
+                    }
+                }
+            }
+            if (rno.equalsIgnoreCase(""))
+                Toast.makeText(MainActivity.this, "Please enter the register  number of a student!", Toast.LENGTH_LONG).show();
+        });
+
+
+        // Closing a database if no longer required for database manipulation
+        btnClose.setOnClickListener(view -> {
+            dbHandler.closeDB();
+            Toast.makeText(MainActivity.this, "Student Database Closed", Toast.LENGTH_SHORT).show();
+        });
+
+        btnClear.setOnClickListener(view -> clearTextFields());
+        // Your code ends here
+
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main),
+                (v, insets) -> {
+                    Insets systemBars =
+                            insets.getInsets(WindowInsetsCompat.Type.systemBars());
+                    v.setPadding(systemBars.left, systemBars.top, systemBars.right,
+                            systemBars.bottom);
+                    return insets;
+                });
+    }
+    public void clearTextFields()
+    {
+        txtRegno.setText("");
+        txtName.setText("");
+    }
+}
+class DBHandler extends SQLiteOpenHelper {
+    // creating a constant variables for our database.
+    // below variable is for our database name.
+    static final String DB_NAME = "studentdb";
+    // below int is our database version
+    static final int DB_VERSION = 1;
+    // below variable is for our table name.
+    static final String TABLE_NAME = "student";
+    // below variable is for our id column.
+    static final String ID_COL = "regno";
+    // below variable is for our course name column
+    static final String NAME_COL = "name";
+    SQLiteDatabase db;
+    Cursor c;
+    int nr;
+    StudentRecord rec;
+    // creating a constructor for our database handler.
+    public DBHandler(Context context) {
+        super(context, DB_NAME, null, DB_VERSION);
+    }
+    // below method is for creating a database by running a sqlite query
+    @Override
+    public void onCreate(SQLiteDatabase db) {
+        // on below line we are creating
+        // an sqlite query and we are
+        // setting our column names
+        // along with their data types.
+        String query = "CREATE TABLE " + TABLE_NAME + " ("+ ID_COL + " TEXT PRIMARY KEY, "+ NAME_COL + " TEXT )";
+        // at last we are calling a exec sql
+        // method to execute above sql query
+        db.execSQL(query);
+    }
+    // this method is use to add new course to our sqlite database.
+    public void addNewRecord(String regno, String name) {
+        // on below line we are creating a variable for
+        // our sqlite database and calling writable method
+        // as we are writing data in our database.
+        db = this.getWritableDatabase();
+        // on below line we are creating a
+        // variable for content values.
+        ContentValues values = new ContentValues();
+        // on below line we are passing all values
+        // along with its key and value pair.
+        values.put(ID_COL, regno);
+        values.put(NAME_COL, name);
+        // after adding all values we are passing
+        // content values to our table.
+        db.insert(TABLE_NAME, null, values);
+    }
+    public int updateRecord(String rno, String name)
+    {
+        // calling a method to get writable database.
+        db = this.getWritableDatabase();
+        ContentValues values = new ContentValues();
+        // on below line we are passing all values
+        // along with its key and value pair.
+        values.put(NAME_COL, name);
+        // on below line we are calling a update method to update ourdatabase and passing our values.
+            // and we are comparing it with name of our course which is stored in original name variable.
+        nr=db.update(TABLE_NAME, values, ID_COL + "=?", new String[]{ rno });
+        return (nr);
+    }
+    public int deleteRecord(String rno)
+    {
+        // Calling getWritableDatabase() on SQLite for
+        // performing database manipulation
+        db = this.getWritableDatabase();
+        // Deleting an existing record
+        nr=db.delete(TABLE_NAME,ID_COL + "=?",new String[] { rno });
+        return(nr);
+    }
+    @SuppressLint("Range")
+    public StudentRecord viewRecord(String rno)
+    {
+        // on below line we are creating a
+        // database for reading our database.
+        db = this.getReadableDatabase();
+        try {
+            // on below line we are creating a cursor with query to read data from database
+            c = db.query(TABLE_NAME,new String[] { ID_COL, NAME_COL
+                    },ID_COL + "=?",
+                    new String[] { rno },null, null, null, null);
+            //if (c!=null) {
+            c.moveToFirst();
+            //rec=new StudentRecord(c.getString(0), c.getString(1));
+            rec=new StudentRecord();
+            rec.setRegno(c.getString(0));
+            rec.setName(c.getString(1));
+            //}
+        }catch(Exception e){e.printStackTrace();}
+        return rec;
+    }
+    public void closeDB()
+    {
+        // Closing database after the database manipulation
+        db.close();
+    }
+    @Override
+    public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
+        // This method is called to check if the table exists already
+        db.execSQL("DROP TABLE IF EXISTS " + TABLE_NAME);
+        onCreate(db);
+    }
+}
+class StudentRecord {
+    String regno;
+    String name;
+    StudentRecord()
+    { }
+    /**
+     StudentRecord(String regno,String name)
+     {
+     this.regno=regno;
+     this.name=name;
+     }
+     */
+    void setRegno(String regno)
+    {
+        this.regno=regno;
+    }
+    String getRegno()
+    {
+        return regno;
+    }
+    void setName(String name)
+    {
+        this.name=name;
+    }
+    String getName() {
+        return name;
+    }
+}
+
+
+
+xml
+
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".MainActivity">
+    <TextView
+        android:id="@+id/tvTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="36dp"
+        android:layout_marginTop="58dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="643dp"
+        android:text="Database Manipulation Using SQLite"
+        android:textAppearance="@style/TextAppearance.AppCompat.Large"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:ignore="HardcodedText" />
+    <TextView
+        android:id="@+id/tvStudentRNo"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="36dp"
+        android:layout_marginTop="124dp"
+        android:layout_marginEnd="241dp"
+        android:layout_marginBottom="583dp"
+        android:text="Register Number"
+        android:textAppearance="@style/TextAppearance.AppCompat.Medium"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:ignore="HardcodedText" />
+    <EditText
+        android:id="@+id/txtStudentRNo"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="186dp"
+        android:layout_marginTop="114dp"
+        android:layout_marginEnd="15dp"
+        android:layout_marginBottom="572dp"
+        android:ems="10"
+        android:inputType="text"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+
+        tools:ignore="Autofill,LabelFor,SpeakableTextPresentCheck,TouchTargetSize
+Check" />
+    <TextView
+        android:id="@+id/tvName"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="36dp"
+        android:layout_marginTop="189dp"
+        android:layout_marginEnd="261dp"
+        android:layout_marginBottom="518dp"
+        android:text="Student Name"
+        android:textAppearance="@style/TextAppearance.AppCompat.Medium"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:ignore="HardcodedText" />
+    <EditText
+        android:id="@+id/txtStudentName"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="184dp"
+        android:layout_marginTop="179dp"
+        android:layout_marginEnd="17dp"
+        android:layout_marginBottom="507dp"
+        android:ems="10"
+        android:inputType="text"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+
+        tools:ignore="Autofill,LabelFor,SpeakableTextPresentCheck,TouchTargetSize
+Check" />
+    <Button
+        android:id="@+id/btnInsert"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="28dp"
+        android:layout_marginTop="250dp"
+        android:layout_marginEnd="261dp"
+        android:layout_marginBottom="431dp"
+        android:text="INSERT"
+        android:textAppearance="@style/TextAppearance.AppCompat.Large"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:ignore="HardcodedText" />
+    <Button
+        android:id="@+id/btnView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="164dp"
+        android:layout_marginTop="250dp"
+        android:layout_marginEnd="147dp"
+        android:layout_marginBottom="431dp"
+        android:text="VIEW"
+        android:textAppearance="@style/TextAppearance.AppCompat.Large"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:ignore="HardcodedText" />
+    <Button
+        android:id="@+id/btnClose"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="279dp"
+        android:layout_marginTop="250dp"
+        android:layout_marginEnd="17dp"
+        android:layout_marginBottom="431dp"
+        android:text="CLOSE"
+        android:textAppearance="@style/TextAppearance.AppCompat.Large"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:ignore="HardcodedText" />
+    <Button
+        android:id="@+id/btnUpdate"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="29dp"
+        android:layout_marginTop="326dp"
+        android:layout_marginEnd="252dp"
+        android:layout_marginBottom="355dp"
+        android:text="UPDATE"
+        android:textAppearance="@style/TextAppearance.AppCompat.Large"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:ignore="HardcodedText" />
+    <Button
+        android:id="@+id/btnDelete"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="168dp"
+        android:layout_marginTop="323dp"
+        android:layout_marginEnd="117dp"
+        android:layout_marginBottom="358dp"
+        android:text="DELETE"
+        android:textAppearance="@style/TextAppearance.AppCompat.Large"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:ignore="HardcodedText" />
+    <Button
+        android:id="@+id/btnClear"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="294dp"
+        android:layout_marginTop="323dp"
+        android:layout_marginEnd="2dp"
+        android:layout_marginBottom="358dp"
+        android:text="CLEAR"
+        android:textAppearance="@style/TextAppearance.AppCompat.Large"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:ignore="HardcodedText" />
+</androidx.constraintlayout.widget.ConstraintLayout>
